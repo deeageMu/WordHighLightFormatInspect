@@ -312,6 +312,15 @@ def main() -> int:
         default=800,
         help="Maximale Laenge des XML-Snippets pro Treffer. 0 = komplettes Snippet, -1 = keine Begrenzung (alias fuer 0)",
     )
+    parser.add_argument(
+        "--annotate",
+        type=Path,
+        default=None,
+        metavar="AUSGABE.docx",
+        help="Optional: erstellt unter diesem Pfad eine Kopie der Datei, in der die "
+        "gefundenen Formatierungen als Word-Kommentare markiert sind. Die "
+        "Original-Datei bleibt dabei unveraendert.",
+    )
     args = parser.parse_args()
 
     if not args.datei.exists():
@@ -336,6 +345,19 @@ def main() -> int:
     if args.csv:
         _write_csv(result, args.csv, xml_max_chars=xml_max_chars)
         print(f"\nCSV-Export gespeichert unter: {args.csv}")
+
+    if args.annotate:
+        from comment_writer import annotate_docx  # lokaler Import, um Zirkelbezuege zu vermeiden
+
+        if args.annotate.resolve() == args.datei.resolve():
+            print("Fehler: Zieldatei fuer --annotate darf nicht mit der Originaldatei identisch sein.", file=sys.stderr)
+            return 1
+        try:
+            anzahl = annotate_docx(args.datei, args.annotate)
+        except zipfile.BadZipFile:
+            print("Fehler: Datei ist kein gueltiges .docx (kein ZIP-Archiv).", file=sys.stderr)
+            return 1
+        print(f"\n{anzahl} Kommentar(e) geschrieben nach: {args.annotate}")
 
     return 0
 
