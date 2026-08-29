@@ -37,7 +37,10 @@ def test_format_bericht_only_shows_xml_when_flag_is_enabled():
 
     report_default = _format_bericht(result, "sample.docx")
     report_with_xml = _format_bericht(result, "sample.docx", out_xml=True)
+    report_with_full_xml = _format_bericht(result, "sample.docx", out_xml=True, xml_max_chars=0)
 
     assert "XML:" not in report_default
     assert "XML:" in report_with_xml
     assert "<w:rPr>" in report_with_xml
+    assert "<w:t>Hallo</w:t>" in report_with_full_xml
+    assert "..." not in report_with_full_xml

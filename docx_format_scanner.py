@@ -72,9 +72,17 @@ def _style_name(styles_root: etree._Element | None, style_id: str | None) -> str
 def _xml_fragment(element: etree._Element, max_chars: int = 800) -> str:
     xml = etree.tostring(element, encoding="unicode", pretty_print=True)
     xml = xml.strip()
-    if len(xml) > max_chars:
+    if max_chars > 0 and len(xml) > max_chars:
         xml = xml[:max_chars].rstrip() + "..."
     return xml
+
+
+def _truncate_xml_snippet(snippet: str, max_chars: int = 800) -> str:
+    if max_chars <= 0:
+        return snippet
+    if len(snippet) > max_chars:
+        return snippet[:max_chars].rstrip() + "..."
+    return snippet
 
 
 def _scan_run_props(
@@ -218,7 +226,7 @@ def scan_docx(pfad: Path) -> ScanResult:
     return result
 
 
-def _format_bericht(result: ScanResult, dateiname: str, out_xml: bool = False) -> str:
+def _format_bericht(result: ScanResult, dateiname: str, out_xml: bool = False, xml_max_chars: int = 800) -> str:
     lines: list[str] = []
     lines.append(f"Formatierungsanalyse: {dateiname}")
     lines.append("=" * 60)
@@ -239,14 +247,14 @@ def _format_bericht(result: ScanResult, dateiname: str, out_xml: bool = False) -
                 werte.setdefault(it.wert, []).append(it)
             for wert, treffer in werte.items():
                 lines.append(f"  Wert: {wert}  ({len(treffer)}x)")
-                for t in treffer[:5]:
+                for t in treffer:
                     lines.append(f"    - {t.ort}: \"{t.textausschnitt}\"")
                     if out_xml and t.xml_snippet:
-                        lines.append("      XML:")
-                        for xml_line in t.xml_snippet.splitlines():
-                            lines.append(f"        {xml_line}")
-                if len(treffer) > 5:
-                    lines.append(f"    ... und {len(treffer) - 5} weitere")
+                        snippet = _truncate_xml_snippet(t.xml_snippet, xml_max_chars)
+                        if snippet:
+                            lines.append("      XML:")
+                            for xml_line in snippet.splitlines():
+                                lines.append(f"        {xml_line}")
             lines.append("")
 
     if result.fonts_verwendet:
@@ -263,11 +271,12 @@ def _format_bericht(result: ScanResult, dateiname: str, out_xml: bool = False) -
     return "\n".join(lines)
 
 
-def _write_csv(result: ScanResult, ausgabe_pfad: Path) -> None:
+def _write_csv(result: ScanResult, ausgabe_pfad: Path, xml_max_chars: int = 800) -> None:
     with open(ausgabe_pfad, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(["Kategorie", "Wert", "Ort", "Textausschnitt", "Formatvorlage", "XML"])
         for finding in result.findings:
+            xml_value = _truncate_xml_snippet(finding.xml_snippet, xml_max_chars)
             writer.writerow(
                 [
                     finding.kategorie,
@@ -275,7 +284,7 @@ def _write_csv(result: ScanResult, ausgabe_pfad: Path) -> None:
                     finding.ort,
                     finding.textausschnitt,
                     finding.style_name,
-                    finding.xml_snippet,
+                    xml_value,
                 ]
             )
 
@@ -297,6 +306,12 @@ def main() -> int:
         action="store_true",
         help="Optional: zeige bei gefundenen Formatierungen auch das zugehoerige XML-Fragment an",
     )
+    parser.add_argument(
+        "--xml-max-chars",
+        type=int,
+        default=800,
+        help="Maximale Laenge des XML-Snippets pro Treffer. 0 = komplettes Snippet, -1 = keine Begrenzung (alias fuer 0)",
+    )
     args = parser.parse_args()
 
     if not args.datei.exists():
@@ -312,10 +327,14 @@ def main() -> int:
         print("Fehler: Datei ist kein gueltiges .docx (kein ZIP-Archiv).", file=sys.stderr)
         return 1
 
-    print(_format_bericht(result, args.datei.name, out_xml=args.out_xml))
+    xml_max_chars = args.xml_max_chars
+    if xml_max_chars < 0:
+        xml_max_chars = 0
+
+    print(_format_bericht(result, args.datei.name, out_xml=args.out_xml, xml_max_chars=xml_max_chars))
 
     if args.csv:
-        _write_csv(result, args.csv)
+        _write_csv(result, args.csv, xml_max_chars=xml_max_chars)
         print(f"\nCSV-Export gespeichert unter: {args.csv}")
 
     return 0

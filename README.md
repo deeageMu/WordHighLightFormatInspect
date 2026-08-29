@@ -1,8 +1,21 @@
 # WordHighLightFormatInspect
 
+## Usage
+
+```bash
 cd /workspaces/WordHighLightFormatInspect
 python3 -m pip install -r requirements.txt
-pyinstaller --onefile --name WordHighLightFormatInspect main.py
+python3 main.py document.docx
+python3 main.py document.docx --out-xml
+python3 main.py document.docx --out-xml --xml-max-chars 0
+```
 
-Hinweis: PyInstaller ergänzt auf Windows automatisch die .exe-Dateiendung.
-Ein Windows-EXE muss auf einem Windows-Runner bzw. Windows-System gebaut werden; ein Build im Linux-Codespace erzeugt eine Linux-Anwendung, auch wenn der Name .exe endet.
+## Build Windows EXE
+
+```bash
+pyinstaller --onefile --name WordHighLightFormatInspect main.py
+```
+
+Creates: `dist/WordHighLightFormatInspect.exe`
+
+> Build the Windows EXE only on Windows. In Linux or Codespaces, the output is a Linux binary even if the filename ends with .exe.
