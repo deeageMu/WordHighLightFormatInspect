@@ -35,6 +35,26 @@ is required.
 
 ## Build Windows EXE
 
+### Docker
+
+Build the Windows-compatible EXE from Linux or macOS with Docker. The source
+directory is mounted into the container and the generated file is written to
+`dist/WordHighLightFormatInspect.exe`:
+
+```bash
+docker build -f Dockerfile.windows -t wordhighlightformatinspect-windows .
+mkdir -p dist
+docker run --rm \
+    -v "$PWD:/src" \
+    -v "$PWD/dist:/output" \
+    wordhighlightformatinspect-windows
+```
+
+The Docker image uses Wine with Windows Python because PyInstaller cannot
+cross-compile a Windows executable from a Linux Python installation.
+
+### Windows
+
 ```bash
 pyinstaller --onefile --name WordHighLightFormatInspect main.py
 ```

@@ -1,0 +1,42 @@
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    WINEARCH=win64 \
+    WINEPREFIX=/opt/wineprefix
+
+RUN dpkg --add-architecture i386 \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        cabextract \
+        curl \
+        xvfb \
+        wine \
+        wine32 \
+        wine64 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt
+
+RUN curl -fsSL -o python-installer.exe \
+        https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe \
+    && xvfb-run -a wine python-installer.exe \
+        /quiet \
+        InstallAllUsers=1 \
+        "TargetDir=C:\\Python312" \
+        Include_pip=1 \
+        PrependPath=1 \
+    && rm python-installer.exe
+
+COPY requirements.txt /opt/requirements.txt
+
+RUN xvfb-run -a wine 'C:\\Python312\\python.exe' -m pip install --upgrade pip \
+    && xvfb-run -a wine 'C:\\Python312\\python.exe' -m pip install -r 'Z:\\opt\\requirements.txt'
+
+WORKDIR /src
+
+CMD xvfb-run -a wine 'C:\\Python312\\python.exe' -m PyInstaller \
+        --onefile \
+        --name WordHighLightFormatInspect \
+        main.py \
+    && cp dist/WordHighLightFormatInspect.exe /output/
