@@ -8,6 +8,7 @@ python3 -m pip install -r requirements.txt
 python3 main.py document.docx
 python3 main.py document.docx --out-xml
 python3 main.py document.docx --out-xml --xml-max-chars 0
+zip -r WordHighLightFormatInspect.zip . -x "*.git*" "tmp/*" "build/*" "dist/*"
 ```
 
 ## Build Windows EXE
