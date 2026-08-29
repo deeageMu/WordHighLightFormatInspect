@@ -1,0 +1,7 @@
+build/*
+WordHighLightFormatInspect.spec
+dist/WordHighLightFormatInspect
+tests/__pycache__/*.pyc
+dist/WordHighLightFormatInspect.exe
+WordHighLightFormatInspect.exe.spec
+__pycache__/*.pyc
