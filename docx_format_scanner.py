@@ -38,6 +38,7 @@ class Finding:
     ort: str               # z.B. "Absatz 12, Lauf 3" oder "Tabelle 1, Zelle (2,1)"
     textausschnitt: str    # kurzer Kontext, max. ~60 Zeichen
     style_name: str = ""   # falls die Formatierung ueber eine benannte Formatvorlage kommt
+    xml_snippet: str = "" # XML-Fragment mit Text und zugehoeriger Formatierung
 
 
 @dataclass
@@ -68,6 +69,14 @@ def _style_name(styles_root: etree._Element | None, style_id: str | None) -> str
     return style_id
 
 
+def _xml_fragment(element: etree._Element, max_chars: int = 800) -> str:
+    xml = etree.tostring(element, encoding="unicode", pretty_print=True)
+    xml = xml.strip()
+    if len(xml) > max_chars:
+        xml = xml[:max_chars].rstrip() + "..."
+    return xml
+
+
 def _scan_run_props(
     rpr: etree._Element,
     ort: str,
@@ -75,26 +84,29 @@ def _scan_run_props(
     styles_root: etree._Element | None,
     findings: list[Finding],
     fonts: set[str],
+    xml_element: etree._Element,
 ) -> None:
+    snippet = _xml_fragment(xml_element)
+
     highlight = rpr.find(qn("w:highlight"))
     if highlight is not None:
         val = highlight.get(qn("w:val"))
-        findings.append(Finding("Hervorhebung", val or "?", ort, text_ctx))
+        findings.append(Finding("Hervorhebung", val or "?", ort, text_ctx, xml_snippet=snippet))
 
     shd = rpr.find(qn("w:shd"))
     if shd is not None:
         fill = shd.get(qn("w:fill"))
         val = shd.get(qn("w:val"))
         if fill and fill.lower() != "auto":
-            findings.append(Finding("Zeichen-Schattierung", f"fill={fill}", ort, text_ctx))
+            findings.append(Finding("Zeichen-Schattierung", f"fill={fill}", ort, text_ctx, xml_snippet=snippet))
         elif val and val.lower() != "clear":
-            findings.append(Finding("Zeichen-Schattierung", f"val={val}", ort, text_ctx))
+            findings.append(Finding("Zeichen-Schattierung", f"val={val}", ort, text_ctx, xml_snippet=snippet))
 
     color = rpr.find(qn("w:color"))
     if color is not None:
         val = color.get(qn("w:val"))
         if val and val.lower() not in ("auto",):
-            findings.append(Finding("Textfarbe", val, ort, text_ctx))
+            findings.append(Finding("Textfarbe", val, ort, text_ctx, xml_snippet=snippet))
 
     rfonts = rpr.find(qn("w:rFonts"))
     if rfonts is not None:
@@ -107,18 +119,19 @@ def _scan_run_props(
     if rstyle is not None:
         style_id = rstyle.get(qn("w:val"))
         name = _style_name(styles_root, style_id)
-        findings.append(Finding("Zeichenformatvorlage", name, ort, text_ctx, style_name=name))
+        findings.append(Finding("Zeichenformatvorlage", name, ort, text_ctx, style_name=name, xml_snippet=snippet))
 
 
-def _scan_paragraph_shading(ppr: etree._Element, ort: str, text_ctx: str, findings: list[Finding]) -> None:
+def _scan_paragraph_shading(ppr: etree._Element, ort: str, text_ctx: str, findings: list[Finding], xml_element: etree._Element) -> None:
     shd = ppr.find(qn("w:shd"))
     if shd is not None:
         fill = shd.get(qn("w:fill"))
         val = shd.get(qn("w:val"))
+        snippet = _xml_fragment(xml_element)
         if fill and fill.lower() != "auto":
-            findings.append(Finding("Absatz-Schattierung", f"fill={fill}", ort, text_ctx))
+            findings.append(Finding("Absatz-Schattierung", f"fill={fill}", ort, text_ctx, xml_snippet=snippet))
         elif val and val.lower() != "clear":
-            findings.append(Finding("Absatz-Schattierung", f"val={val}", ort, text_ctx))
+            findings.append(Finding("Absatz-Schattierung", f"val={val}", ort, text_ctx, xml_snippet=snippet))
 
 
 def _scan_table_cell_shading(tc: etree._Element, ort: str, findings: list[Finding]) -> None:
@@ -130,10 +143,11 @@ def _scan_table_cell_shading(tc: etree._Element, ort: str, findings: list[Findin
         fill = shd.get(qn("w:fill"))
         val = shd.get(qn("w:val"))
         text_ctx = _text_snippet(tc)
+        snippet = _xml_fragment(tc)
         if fill and fill.lower() != "auto":
-            findings.append(Finding("Tabellenzellen-Schattierung", f"fill={fill}", ort, text_ctx))
+            findings.append(Finding("Tabellenzellen-Schattierung", f"fill={fill}", ort, text_ctx, xml_snippet=snippet))
         elif val and val.lower() != "clear":
-            findings.append(Finding("Tabellenzellen-Schattierung", f"val={val}", ort, text_ctx))
+            findings.append(Finding("Tabellenzellen-Schattierung", f"val={val}", ort, text_ctx, xml_snippet=snippet))
 
 
 def scan_document_xml(
@@ -153,7 +167,7 @@ def scan_document_xml(
 
         ppr = p.find(qn("w:pPr"))
         if ppr is not None:
-            _scan_paragraph_shading(ppr, f"{quelle}: Absatz {absatz_index}", text_ctx, findings)
+            _scan_paragraph_shading(ppr, f"{quelle}: Absatz {absatz_index}", text_ctx, findings, p)
 
         lauf_index = 0
         for r in p.findall(qn("w:r")):
@@ -162,7 +176,7 @@ def scan_document_xml(
             if rpr is not None:
                 ort = f"{quelle}: Absatz {absatz_index}, Lauf {lauf_index}"
                 run_text_ctx = _text_snippet(r)
-                _scan_run_props(rpr, ort, run_text_ctx, styles_root, findings, fonts)
+                _scan_run_props(rpr, ort, run_text_ctx, styles_root, findings, fonts, r)
 
     tabelle_index = 0
     for tbl in root.iter(qn("w:tbl")):
@@ -204,7 +218,7 @@ def scan_docx(pfad: Path) -> ScanResult:
     return result
 
 
-def _format_bericht(result: ScanResult, dateiname: str) -> str:
+def _format_bericht(result: ScanResult, dateiname: str, out_xml: bool = False) -> str:
     lines: list[str] = []
     lines.append(f"Formatierungsanalyse: {dateiname}")
     lines.append("=" * 60)
@@ -227,6 +241,10 @@ def _format_bericht(result: ScanResult, dateiname: str) -> str:
                 lines.append(f"  Wert: {wert}  ({len(treffer)}x)")
                 for t in treffer[:5]:
                     lines.append(f"    - {t.ort}: \"{t.textausschnitt}\"")
+                    if out_xml and t.xml_snippet:
+                        lines.append("      XML:")
+                        for xml_line in t.xml_snippet.splitlines():
+                            lines.append(f"        {xml_line}")
                 if len(treffer) > 5:
                     lines.append(f"    ... und {len(treffer) - 5} weitere")
             lines.append("")
@@ -248,10 +266,17 @@ def _format_bericht(result: ScanResult, dateiname: str) -> str:
 def _write_csv(result: ScanResult, ausgabe_pfad: Path) -> None:
     with open(ausgabe_pfad, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["Kategorie", "Wert", "Ort", "Textausschnitt", "Formatvorlage"])
+        writer.writerow(["Kategorie", "Wert", "Ort", "Textausschnitt", "Formatvorlage", "XML"])
         for finding in result.findings:
             writer.writerow(
-                [finding.kategorie, finding.wert, finding.ort, finding.textausschnitt, finding.style_name]
+                [
+                    finding.kategorie,
+                    finding.wert,
+                    finding.ort,
+                    finding.textausschnitt,
+                    finding.style_name,
+                    finding.xml_snippet,
+                ]
             )
 
 
@@ -266,6 +291,11 @@ def main() -> int:
         type=Path,
         default=None,
         help="Optional: Pfad, unter dem die Ergebnisse zusaetzlich als CSV gespeichert werden",
+    )
+    parser.add_argument(
+        "--out-xml",
+        action="store_true",
+        help="Optional: zeige bei gefundenen Formatierungen auch das zugehoerige XML-Fragment an",
     )
     args = parser.parse_args()
 
@@ -282,7 +312,7 @@ def main() -> int:
         print("Fehler: Datei ist kein gueltiges .docx (kein ZIP-Archiv).", file=sys.stderr)
         return 1
 
-    print(_format_bericht(result, args.datei.name))
+    print(_format_bericht(result, args.datei.name, out_xml=args.out_xml))
 
     if args.csv:
         _write_csv(result, args.csv)
