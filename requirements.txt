@@ -1,2 +1,2 @@
-lxml
-pyinstaller
+lxml==5.3.0
+pyinstaller==6.12.0
