@@ -103,3 +103,19 @@ The same workflow can be started manually to create downloadable workflow
 artifacts without publishing a release. To publish binaries for an existing
 tag, start the workflow manually and enter that tag in the `release_tag` input,
 for example `v0.0.1`.
+
+## Windows Folder Package
+
+The separate `Build Windows Folder Package` workflow creates an `--onedir`
+package instead of a self-extracting `--onefile` executable. The ZIP contains
+both the GUI and console folders, including all required runtime files.
+
+Run the workflow manually to download the ZIP as an Actions artifact. To also
+publish it as a GitHub Release, push a tag such as:
+
+```bash
+git tag -a onedir-v0.0.3 -m "Windows folder package v0.0.3"
+git push origin onedir-v0.0.3
+```
+
+The resulting release asset is `WordHighLightFormatInspect-windows-onedir.zip`.

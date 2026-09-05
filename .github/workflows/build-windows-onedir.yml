@@ -1,0 +1,62 @@
+name: Build Windows Folder Package
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "onedir-v*"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Build Windows GUI folder
+        run: pyinstaller --onedir --windowed --clean --name WordHighLightFormatInspect main.py
+
+      - name: Build Windows console folder
+        run: pyinstaller --onedir --clean --name WordHighLightFormatInspect-console main.py
+
+      - name: Create ZIP package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path package | Out-Null
+          Copy-Item -Recurse dist\WordHighLightFormatInspect package\
+          Copy-Item -Recurse dist\WordHighLightFormatInspect-console package\
+          Compress-Archive -Path package\* -DestinationPath WordHighLightFormatInspect-windows-onedir.zip
+
+      - name: Upload ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-onedir-package
+          path: WordHighLightFormatInspect-windows-onedir.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/onedir-v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download ZIP artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-onedir-package
+          path: release
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/WordHighLightFormatInspect-windows-onedir.zip
+          generate_release_notes: true
