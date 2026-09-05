@@ -21,13 +21,25 @@ remains unchanged; the source and destination files must not be identical.
 ## Usage (Windows Interface)
 
 Without arguments (for example, by double-clicking
-`WordHighLightFormatInspect.exe` or running `python3 main.py`), a basic Tkinter
-interface limited to the core features starts:
+`WordHighLightFormatInspect.exe` or running `python3 main.py`), a Tkinter
+interface for the core features starts. The GUI supports Deutsch, English,
+and Français. It detects the system language on first start and falls back to
+English for unsupported languages.
 
-1. **Datei waehlen...** - Choose a `.docx` file using the file dialog
-2. **Scannen** - Display the formatting report
-3. **Kommentierte Kopie erstellen...** - Choose where to save the new
-    annotated file (the original remains unchanged)
+The language menu opens from the menu bar and offers all three languages.
+Manual selection is saved and overrides system-language detection on future
+starts. The current report is updated in the selected language on the next
+scan.
+
+The setting is stored as UTF-8 JSON under the user's standard configuration
+directory, for example:
+
+```json
+{ "language": "de" }
+```
+
+The GUI report is translated, while the command-line interface always uses
+English.
 
 The interface can also be forced with `--gui` when arguments are present.
 Tkinter is part of the Python standard library, so no additional installation
