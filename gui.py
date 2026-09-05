@@ -28,6 +28,8 @@ from comment_writer import annotate_docx
 from docx_format_scanner import _format_bericht, scan_docx
 from i18n import LANGUAGES, detect_system_language, get_translator
 from settings import initial_language, save_language
+from i18n import LANGUAGES, detect_system_language, get_translator
+from settings import initial_language, save_language
 
 
 class App(tk.Tk):
@@ -62,6 +64,7 @@ class App(tk.Tk):
 
         self.scan_button = tk.Button(
             button_zeile, command=self._scannen, state="disabled"
+            button_zeile, command=self._scannen, state="disabled"
         )
         self.scan_button.pack(side="left")
 
@@ -77,7 +80,47 @@ class App(tk.Tk):
         self.text.configure(state="disabled")
 
         self.status = tk.Label(self, anchor="w", relief="sunken")
+        self.status = tk.Label(self, anchor="w", relief="sunken")
         self.status.pack(fill="x", side="bottom")
+        self._update_language_text()
+
+    def _update_language_menu(self) -> None:
+        self.language_menu.delete(0, "end")
+        for language in LANGUAGES:
+            self.language_menu.add_radiobutton(
+                label=self.translate(f"language.{language}"),
+                variable=self.language_var,
+                value=language,
+                command=lambda selected=language: self._select_language(selected),
+            )
+        self.menu_bar.entryconfigure(0, label=self.translate("language"))
+
+    def _open_language_menu_on_hover(self, event: tk.Event) -> None:
+        entry_box = self.menu_bar.entrybbox(0)
+        if entry_box is None:
+            return
+        entry_x, entry_y, entry_width, entry_height = entry_box
+        if entry_x <= event.x <= entry_x + entry_width and entry_y <= event.y <= entry_y + entry_height:
+            self.language_menu.post(
+                self.menu_bar.winfo_rootx() + entry_x,
+                self.menu_bar.winfo_rooty() + entry_y + entry_height,
+            )
+
+    def _update_language_text(self) -> None:
+        self.title(self.translate("app.title"))
+        self.pfad_label.configure(text=self.translate("no_file"))
+        self.choose_button.configure(text=self.translate("choose_file"))
+        self.scan_button.configure(text=self.translate("scan"))
+        self.annotate_button.configure(text=self.translate("create_copy"))
+        self.status.configure(text=self.translate("ready"))
+
+    def _select_language(self, language: str) -> None:
+        self.language = language
+        self.translate = get_translator(language)
+        save_language(language)
+        self.language_var.set(language)
+        self._update_language_menu()
+        self._update_language_text()
         self._update_language_text()
 
     def _update_language_menu(self) -> None:
@@ -131,6 +174,11 @@ class App(tk.Tk):
                 (self.translate("word_documents"), "*.docx"),
                 (self.translate("all_files"), "*.*"),
             ],
+            title=self.translate("word_file"),
+            filetypes=[
+                (self.translate("word_documents"), "*.docx"),
+                (self.translate("all_files"), "*.*"),
+            ],
         )
         if not pfad:
             return
@@ -138,6 +186,7 @@ class App(tk.Tk):
         self.pfad_label.configure(text=str(self.pfad))
         self.scan_button.configure(state="normal")
         self.annotate_button.configure(state="normal")
+        self.status.configure(text=self.translate("file_selected"))
         self.status.configure(text=self.translate("file_selected"))
         self._set_text("")
 
@@ -147,12 +196,16 @@ class App(tk.Tk):
         try:
             result = scan_docx(self.pfad)
             bericht = _format_bericht(result, self.pfad.name, translate=self.translate)
+            bericht = _format_bericht(result, self.pfad.name, translate=self.translate)
             self._set_text(bericht)
+            self.status.configure(text=self.translate("findings").format(count=len(result.findings)))
             self.status.configure(text=self.translate("findings").format(count=len(result.findings)))
         except zipfile.BadZipFile:
             messagebox.showerror(self.translate("error"), self.translate("invalid_docx"))
+            messagebox.showerror(self.translate("error"), self.translate("invalid_docx"))
         except Exception as exc:  # rudimentaere Fehlerbehandlung fuer die Oberflaeche
             traceback.print_exc()
+            messagebox.showerror(self.translate("scan_error"), str(exc))
             messagebox.showerror(self.translate("scan_error"), str(exc))
 
     def _annotieren(self) -> None:
@@ -160,7 +213,10 @@ class App(tk.Tk):
             return
         suffix = self.translate("suggested_copy")
         vorschlag = self.pfad.with_name(self.pfad.stem + suffix)
+        suffix = self.translate("suggested_copy")
+        vorschlag = self.pfad.with_name(self.pfad.stem + suffix)
         ziel = filedialog.asksaveasfilename(
+            title=self.translate("save_copy"),
             title=self.translate("save_copy"),
             initialfile=vorschlag.name,
             initialdir=str(vorschlag.parent),
@@ -172,20 +228,26 @@ class App(tk.Tk):
         ziel_pfad = Path(ziel)
         if ziel_pfad.resolve() == self.pfad.resolve():
             messagebox.showerror(self.translate("error"), self.translate("same_file"))
+            messagebox.showerror(self.translate("error"), self.translate("same_file"))
             return
         try:
             anzahl = annotate_docx(self.pfad, ziel_pfad)
             self.status.configure(
                 text=self.translate("finished").format(count=anzahl, name=ziel_pfad.name)
+                text=self.translate("finished").format(count=anzahl, name=ziel_pfad.name)
             )
             messagebox.showinfo(
+                self.translate("finished_title"),
+                self.translate("comments_written").format(count=anzahl, path=ziel_pfad),
                 self.translate("finished_title"),
                 self.translate("comments_written").format(count=anzahl, path=ziel_pfad),
             )
         except zipfile.BadZipFile:
             messagebox.showerror(self.translate("error"), self.translate("invalid_docx"))
+            messagebox.showerror(self.translate("error"), self.translate("invalid_docx"))
         except Exception as exc:
             traceback.print_exc()
+            messagebox.showerror(self.translate("copy_error"), str(exc))
             messagebox.showerror(self.translate("copy_error"), str(exc))
 
 
