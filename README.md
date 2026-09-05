@@ -100,4 +100,6 @@ publishes these four assets automatically:
 - `WordHighLightFormatInspect-console` - Linux CLI
 
 The same workflow can be started manually to create downloadable workflow
-artifacts without publishing a release.
+artifacts without publishing a release. To publish binaries for an existing
+tag, start the workflow manually and enter that tag in the `release_tag` input,
+for example `v0.0.1`.
