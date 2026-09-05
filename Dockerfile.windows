@@ -37,6 +37,7 @@ WORKDIR /src
 
 CMD xvfb-run -a wine 'C:\\Python312\\python.exe' -m PyInstaller \
         --onefile \
+        --windowed \
         --name WordHighLightFormatInspect \
         main.py \
     && cp dist/WordHighLightFormatInspect.exe /output/

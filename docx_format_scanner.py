@@ -15,10 +15,13 @@ import argparse
 import csv
 import sys
 import zipfile
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from lxml import etree
+
+from i18n import category_key, get_translator, translate_location
 
 NS = {
     "w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
@@ -226,29 +229,38 @@ def scan_docx(pfad: Path) -> ScanResult:
     return result
 
 
-def _format_bericht(result: ScanResult, dateiname: str, out_xml: bool = False, xml_max_chars: int = 800) -> str:
+def _format_bericht(
+    result: ScanResult,
+    dateiname: str,
+    out_xml: bool = False,
+    xml_max_chars: int = 800,
+    translate: Callable[[str], str] | None = None,
+) -> str:
+    translate = translate or get_translator("en")
     lines: list[str] = []
-    lines.append(f"Formatierungsanalyse: {dateiname}")
+    lines.append(translate("report_title").format(filename=dateiname))
     lines.append("=" * 60)
-    lines.append(f"Untersuchte Teile: {', '.join(result.quellen_dateien)}")
+    lines.append(translate("report_parts").format(parts=", ".join(result.quellen_dateien)))
     lines.append("")
 
     if not result.findings:
-        lines.append("Keine auffaelligen Hintergrund-/Hervorhebungs-/Farbformatierungen gefunden.")
+        lines.append(translate("no_findings"))
     else:
         by_kategorie: dict[str, list[Finding]] = {}
         for f in result.findings:
             by_kategorie.setdefault(f.kategorie, []).append(f)
 
         for kategorie, items in by_kategorie.items():
-            lines.append(f"[{kategorie}] - {len(items)} Fundstelle(n)")
+            category = translate(category_key(kategorie))
+            lines.append(translate("finding_count").format(category=category, count=len(items)))
             werte: dict[str, list[Finding]] = {}
             for it in items:
                 werte.setdefault(it.wert, []).append(it)
             for wert, treffer in werte.items():
-                lines.append(f"  Wert: {wert}  ({len(treffer)}x)")
+                lines.append(translate("value_count").format(value=wert, count=len(treffer)))
                 for t in treffer:
-                    lines.append(f"    - {t.ort}: \"{t.textausschnitt}\"")
+                    location = translate_location(t.ort, translate)
+                    lines.append(f"    - {location}: \"{t.textausschnitt}\"")
                     if out_xml and t.xml_snippet:
                         snippet = _truncate_xml_snippet(t.xml_snippet, xml_max_chars)
                         if snippet:
@@ -258,15 +270,15 @@ def _format_bericht(result: ScanResult, dateiname: str, out_xml: bool = False, x
             lines.append("")
 
     if result.fonts_verwendet:
-        lines.append(f"Im Dokument direkt gesetzte Schriftarten: {', '.join(sorted(result.fonts_verwendet))}")
-        lines.append("(Mehrere unterschiedliche Schriftarten koennen ein Indiz fuer Bearbeitung")
-        lines.append(" in verschiedenen Programmen/Systemen sein, sind aber kein Beweis.)")
+        lines.append(translate("fonts").format(fonts=", ".join(sorted(result.fonts_verwendet))))
+        lines.append(translate("font_hint_1"))
+        lines.append(translate("font_hint_2"))
         lines.append("")
 
-    lines.append("Hinweis: 'Formatierung loeschen' in Word entfernt i.d.R. nur formatvorlagen-")
-    lines.append("basierte und w:highlight-Formatierung zuverlaessig. Direkt gesetzte")
-    lines.append("Zeichen-Schattierung (w:shd auf Laufebene) bleibt dabei haeufig erhalten")
-    lines.append("und muss gezielt entfernt werden.")
+    lines.append(translate("note_1"))
+    lines.append(translate("note_2"))
+    lines.append(translate("note_3"))
+    lines.append(translate("note_4"))
 
     return "\n".join(lines)
 
@@ -291,49 +303,48 @@ def _write_csv(result: ScanResult, ausgabe_pfad: Path, xml_max_chars: int = 800)
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Untersucht eine .docx-Datei rein lesend auf Hintergrund-, "
-        "Hervorhebungs- und Textfarbformatierungen."
+        description="Read-only inspection of a .docx file for background, "
+        "highlight, and text-color formatting."
     )
-    parser.add_argument("datei", type=Path, help="Pfad zur zu untersuchenden .docx-Datei")
+    parser.add_argument("datei", type=Path, help="Path to the .docx file to inspect")
     parser.add_argument(
         "--csv",
         type=Path,
         default=None,
-        help="Optional: Pfad, unter dem die Ergebnisse zusaetzlich als CSV gespeichert werden",
+        help="Optional: path for additionally saving the results as CSV",
     )
     parser.add_argument(
         "--out-xml",
         action="store_true",
-        help="Optional: zeige bei gefundenen Formatierungen auch das zugehoerige XML-Fragment an",
+        help="Optional: also show the related XML fragment for findings",
     )
     parser.add_argument(
         "--xml-max-chars",
         type=int,
         default=800,
-        help="Maximale Laenge des XML-Snippets pro Treffer. 0 = komplettes Snippet, -1 = keine Begrenzung (alias fuer 0)",
+        help="Maximum XML snippet length per finding. 0 = complete snippet, -1 = alias for 0",
     )
     parser.add_argument(
         "--annotate",
         type=Path,
         default=None,
         metavar="AUSGABE.docx",
-        help="Optional: erstellt unter diesem Pfad eine Kopie der Datei, in der die "
-        "gefundenen Formatierungen als Word-Kommentare markiert sind. Die "
-        "Original-Datei bleibt dabei unveraendert.",
+        help="Optional: create a copy at this path with findings marked as Word "
+        "comments. The original file remains unchanged.",
     )
     args = parser.parse_args()
 
     if not args.datei.exists():
-        print(f"Datei nicht gefunden: {args.datei}", file=sys.stderr)
+        print(f"File not found: {args.datei}", file=sys.stderr)
         return 1
 
     if args.datei.suffix.lower() != ".docx":
-        print("Warnung: Datei hat keine .docx-Endung. Fortsetzung wird versucht.", file=sys.stderr)
+        print("Warning: file does not have a .docx extension. Continuing anyway.", file=sys.stderr)
 
     try:
         result = scan_docx(args.datei)
     except zipfile.BadZipFile:
-        print("Fehler: Datei ist kein gueltiges .docx (kein ZIP-Archiv).", file=sys.stderr)
+        print("Error: file is not a valid .docx (not a ZIP archive).", file=sys.stderr)
         return 1
 
     xml_max_chars = args.xml_max_chars
@@ -344,20 +355,20 @@ def main() -> int:
 
     if args.csv:
         _write_csv(result, args.csv, xml_max_chars=xml_max_chars)
-        print(f"\nCSV-Export gespeichert unter: {args.csv}")
+        print(f"\nCSV export saved to: {args.csv}")
 
     if args.annotate:
         from comment_writer import annotate_docx  # lokaler Import, um Zirkelbezuege zu vermeiden
 
         if args.annotate.resolve() == args.datei.resolve():
-            print("Fehler: Zieldatei fuer --annotate darf nicht mit der Originaldatei identisch sein.", file=sys.stderr)
+            print("Error: --annotate destination must not be identical to the original file.", file=sys.stderr)
             return 1
         try:
             anzahl = annotate_docx(args.datei, args.annotate)
         except zipfile.BadZipFile:
-            print("Fehler: Datei ist kein gueltiges .docx (kein ZIP-Archiv).", file=sys.stderr)
+            print("Error: file is not a valid .docx (not a ZIP archive).", file=sys.stderr)
             return 1
-        print(f"\n{anzahl} Kommentar(e) geschrieben nach: {args.annotate}")
+        print(f"\n{anzahl} comment(s) written to: {args.annotate}")
 
     return 0
 
