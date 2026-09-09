@@ -29,6 +29,7 @@ jobs:
         run: |
           python -m nuitka `
             --onefile `
+            --onefile-tempdir-spec="%CACHE_DIR%/WordHighLightFormatInspect/%VERSION%" `
             --enable-plugin=tk-inter `
             --windows-console-mode=disable `
             --msvc=latest `
