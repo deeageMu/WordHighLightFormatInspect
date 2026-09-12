@@ -91,18 +91,15 @@ on Windows, or `dist/WordHighLightFormatInspect-console` on Linux.
 
 ## GitHub Releases
 
-Pushing a tag such as `v1.0.0` starts the release workflow. It builds and
-publishes these four assets automatically:
+The Nuitka workflows publish a GitHub release when one of these tags is pushed:
 
-- `WordHighLightFormatInspect.exe` - Windows GUI
-- `WordHighLightFormatInspect-console.exe` - Windows CLI
-- `WordHighLightFormatInspect` - Linux GUI
-- `WordHighLightFormatInspect-console` - Linux CLI
+- `nuitka-onefile-v1.0.0` publishes `WordHighLightFormatInspect.exe`.
+- `nuitka-onedir-v1.0.0` publishes the zipped Windows folder package.
+- `nuitka-debug-v1.0.0` publishes the zipped debug folder package.
 
-The same workflow can be started manually to create downloadable workflow
-artifacts without publishing a release. To publish binaries for an existing
-tag, start the workflow manually and enter that tag in the `release_tag` input,
-for example `v0.0.1`.
+The workflows can also be started manually to create downloadable workflow
+artifacts without publishing a release. The former PyInstaller workflows are
+disabled.
 
 ## Windows Folder Package
 
