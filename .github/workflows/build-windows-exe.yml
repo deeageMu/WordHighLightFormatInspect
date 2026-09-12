@@ -13,6 +13,7 @@ on:
 
 jobs:
   build-windows:
+    if: ${{ false }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -42,6 +43,7 @@ jobs:
             dist/WordHighLightFormatInspect-console.exe
 
   build-linux:
+    if: ${{ false }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -71,7 +73,7 @@ jobs:
             dist/WordHighLightFormatInspect-console
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
+    if: ${{ false }}
     needs: [build-windows, build-linux]
     runs-on: ubuntu-latest
     permissions:
